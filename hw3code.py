@@ -1,7 +1,9 @@
 # Necessary libraries
 import h5py
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+import os
 import math
 import pandas as pd
 from collections import Counter
@@ -12,9 +14,13 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.metrics import precision_recall_fscore_support
 from tensorflow.keras.utils import to_categorical
-import librosa, librosa.display, numpy as np, matplotlib.pyplot as plt, pandas as pd
+import librosa, librosa.display
 from tensorflow.keras.models import load_model
 import pathlib
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from tensorflow.keras.utils import to_categorical
+
 
 
 # loading the file
@@ -353,18 +359,6 @@ with h5py.File('/Users/alekh/Desktop/birds/spectrograms.h5', 'w') as hf:
 
 
 
-
-
-import os
-import h5py
-import numpy as np
-import librosa
-import matplotlib.pyplot as plt
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from tensorflow.keras.utils import to_categorical
-from sklearn.preprocessing import LabelEncoder
-
 spectro_path = '/Users/alekh/Desktop/birds/bird_spectrograms.hdf5'
 audios = {
     "test1": "/Users/alekh/Desktop/birds/test1.wav",
@@ -436,12 +430,48 @@ test_class = label_encoder.inverse_transform(test_one)
 for i, pred in enumerate(test_class, 1):
     print(f"Test Spectrogram {i} predicted as {pred}")
 
-for idx, name in enumerate(audios):
-    probs = test_predictions[idx]
-    plt.figure(figsize=(6,4))
-    plt.bar(label_encoder.classes_, probs)
-    plt.xticks(rotation=45, ha='right')
-    plt.title(f"{name} softmax probabilities")
-    plt.tight_layout()
-    plt.show()
-    
+
+bird_codes = label_encoder.classes_
+bird_names = [names[c] for c in bird_codes]
+
+hop = int(time_frames * 0.5)
+rows = []
+
+for clip_name, path in audios.items():
+    y, sr = librosa.load(path, sr=22050)
+    s, e = time_windows[clip_name]
+    seg = y[int(s*sr):int(e*sr)]
+
+    S = librosa.feature.melspectrogram(
+        y=seg, sr=sr,
+        n_fft=2048, hop_length=512, n_mels=mel_bins
+    )
+    S_db = librosa.power_to_db(S, ref=np.max)
+    S_norm = np.clip((S_db + 80) / 80, 0, 1)
+
+    n_cols = S_norm.shape[1]
+    if n_cols < time_frames:
+        pad = time_frames - n_cols
+        S_norm = np.pad(S_norm, ((0,0),(0,pad)), mode='constant')
+        n_cols = time_frames
+
+    starts = range(0, n_cols - time_frames + 1, hop)
+    patches = np.stack([S_norm[:, i:i+time_frames] for i in starts])[..., None]
+
+    P = model_three.predict(patches, verbose=0)
+    average = P.mean(axis=0)
+    top_three = np.argsort(average)[-3:][::-1]
+
+    rows.append({
+        "clip":         clip_name,
+        "top1_species": bird_names[top_three[0]],
+        "top1_probability":    float(average[top_three[0]]),
+        "top2_species": bird_names[top_three[1]],
+        "top2_probabaility":    float(average[top_three[1]]),
+        "top3_species": bird_names[top_three[2]],
+        "top3_probabality":    float(average[top_three[2]]),
+    })
+
+df_top3 = pd.DataFrame(rows)
+print("The top 3 external clip predictions")
+display(df_top3)
