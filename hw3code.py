@@ -419,3 +419,13 @@ test_one = np.argmax(test_predictions, axis=1)
 test_class = label_encoder.inverse_transform(test_one)
 for i, pred in enumerate(test_class, 1):
     print(f"Test Spectrogram {i} predicted as {pred}")
+
+for idx, name in enumerate(audios):
+    probs = test_predictions[idx]
+    plt.figure(figsize=(6,4))
+    plt.bar(label_encoder.classes_, probs)
+    plt.xticks(rotation=45, ha='right')
+    plt.title(f"{name} softmax probabilities")
+    plt.tight_layout()
+    plt.show()
+    
