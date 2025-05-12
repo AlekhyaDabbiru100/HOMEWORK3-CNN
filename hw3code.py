@@ -3,18 +3,19 @@ import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+import pandas as pd
 from collections import Counter
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-
+from sklearn.metrics import precision_recall_fscore_support
 from tensorflow.keras.utils import to_categorical
-
 import librosa, librosa.display, numpy as np, matplotlib.pyplot as plt, pandas as pd
 from tensorflow.keras.models import load_model
 import pathlib
+
 
 # loading the file
 data = h5py.File('birds/bird_spectrograms.hdf5', 'r')
@@ -264,6 +265,21 @@ ConfusionMatrixDisplay(conf_mat, display_labels=all_birds).plot(
 plt.title('Multiclass Confusion Matrix')
 plt.tight_layout()
 plt.show()
+
+precision, recall, f1, _ = precision_recall_fscore_support(
+    y_test,
+    prediction_two,
+    zero_division=0
+)
+
+df = pd.DataFrame({
+    "Class": all_birds,
+    "Precision": precision,
+    "Recall": recall,
+    "F1 Score": f1
+})
+print(df)
+
 
 # EXTERNAL TEST DATA
 audios = {
