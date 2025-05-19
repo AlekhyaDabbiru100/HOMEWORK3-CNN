@@ -26,6 +26,7 @@ from tensorflow.keras.utils import to_categorical
 # loading the file
 data = h5py.File('birds/bird_spectrograms.hdf5', 'r')
 
+# Getting the bird species codes
 bird_names = list(data.keys())
 print(bird_names)
 
@@ -46,19 +47,19 @@ names = {
 }
 print(names)
 
+# Displaying the names of bird species and their shapes
 print("All bird species:")
 all_birds = [names[code] for code in bird_names]
 for bird in all_birds:
     print(bird)
-
 for code in bird_names:
     shape = data[code].shape      
     print(f"{code:7s} {names.get(code, 'Unknown'):25s} {shape}")
-
+    
+# Plotting spectrograms for each specie
 n_cols, n_rows = 3, math.ceil(len(bird_names) / 3)
 fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 4 * n_rows))
 axes = axes.flatten()
-
 for i, code in enumerate(bird_names):
         spectro = data[code][:, :, 0]        
         axes[i].imshow(spectro, aspect="auto", origin="lower", cmap="gray")
@@ -66,10 +67,8 @@ for i, code in enumerate(bird_names):
         axes[i].set_xlabel("Time bins")
         axes[i].set_ylabel("Frequency bins")
 
-   
 for j in range(i + 1, len(axes)):
     axes[j].axis("off")
-
 plt.tight_layout()
 plt.show()
 
@@ -84,6 +83,8 @@ plt.title("Spectrogram length by bird species")
 plt.tight_layout()
 plt.show()
 
+
+# Song sparrow vs White crowned sparrow for binary classification, reshaping them.
 with data as f:
     song_sparrow = f['sonspa'][...].astype(np.float32) / 255.0
     white_sparrow = f['whcspa'][...].astype(np.float32) / 255.0
@@ -101,6 +102,7 @@ with data as f:
     song_one = np.zeros(minimum_length, dtype=np.uint8)
     white_one = np.ones(minimum_length, dtype=np.uint8)
 
+    # Combining and shuffle 
     x_class = np.concatenate([song_sparrow, white_sparrow], axis=0)
     y_class = np.concatenate([song_one, white_one], axis=0)
     x_class = x_class[..., np.newaxis]
@@ -121,8 +123,6 @@ model_one = tf.keras.Sequential([
     tf.keras.layers.Dropout(0.3),
     tf.keras.layers.Dense(1, activation='sigmoid')
 ])
-
-
 model_one.compile(
     optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),
     loss='binary_crossentropy',
@@ -131,6 +131,7 @@ model_one.compile(
 
 model_one.summary()
 
+# Training the binary model.
 callbacks_one = [
     tf.keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True),
     tf.keras.callbacks.ModelCheckpoint("lecture_cnn_sparrows.keras", save_best_only=True)
@@ -145,6 +146,7 @@ history = model_one.fit(
     verbose=1
 )
 
+# Plotting the binary model training
 plt.figure(figsize=(12, 6))
 plt.subplot(1, 2, 1)
 plt.plot(history.history['accuracy'], label='Train Accuracy')
@@ -161,12 +163,14 @@ plt.title('Loss')
 plt.tight_layout()
 plt.show()
 
+# Binary model evaluation
 loss, acc, auc = model_one.evaluate(x_test, y_test, verbose=0)
 print(f"\n Final Test Accuracy: {acc:.4f} | AUC: {auc:.4f}")
 
 probability_one = model_one.predict(x_test)
 prediction_one = (probability_one > 0.5).astype(int).flatten()
 
+# Binary model's confusion matrix
 conf_matrix = confusion_matrix(y_test, prediction_one)
 matrix_one = ConfusionMatrixDisplay(confusion_matrix=conf_matrix, display_labels=['Song Sparrow', 'White crowned Sparrow'])
 matrix_one.plot(cmap=plt.cm.Blues)
@@ -185,10 +189,12 @@ with data as f:
         y_all.append(np.full(spec.shape[0], idx, dtype=np.uint8))
         all_birds.append(key)
 
+# combining and shuffling
 x_class = np.concatenate(x_all, axis=0)
 y_class = np.concatenate(y_all, axis=0)
 x_class = x_class[..., np.newaxis]
 
+# Splotting the data
 x_class, y_class = shuffle(x_class, y_class, random_state=42)
 
 x_one, x_test, y_one, y_test = train_test_split(x_class, y_class, test_size=0.4, stratify=y_class, random_state=42)
@@ -203,21 +209,18 @@ x_train, x_valid, y_train, y_valid = train_test_split(x_multi, y_multi,
 num_class = len(all_birds)
 print("Input shape: ", x_train.shape[1:], " | classes:", num_class)
 
+# Multi-class neural network
 model_two = tf.keras.Sequential([
     tf.keras.layers.Conv2D(32, 3, activation='relu', input_shape=x_train.shape[1:]),
     tf.keras.layers.MaxPooling2D(2),
-
     tf.keras.layers.Conv2D(64, 3, activation='relu'),
     tf.keras.layers.MaxPooling2D(2),
-
     tf.keras.layers.Conv2D(128, 3, activation='relu'),
     tf.keras.layers.MaxPooling2D(2),
-
     tf.keras.layers.Flatten(),
     tf.keras.layers.Dense(128, activation='relu'),  
     tf.keras.layers.Dense(num_class, activation='softmax')
 ])
-
 model_two.compile(
     optimizer=tf.keras.optimizers.Adam(1e-4),
     loss='sparse_categorical_crossentropy',
@@ -226,7 +229,7 @@ model_two.compile(
 
 model_two.summary()
 
-
+# Training the multi-class model
 callbacks_two = [
     tf.keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True),
     tf.keras.callbacks.ModelCheckpoint('multiclass_birds.keras', save_best_only=True)
@@ -241,7 +244,7 @@ history = model_two.fit(
     verbose=1
 )
 
-
+# Plotting the multi-class model training
 plt.figure(figsize=(12, 6))
 plt.subplot(1, 2, 1)
 plt.plot(history.history['accuracy'], label='Train Accuracy')
@@ -258,12 +261,13 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
-
+# Model evaluation of multi-class model
 loss, acc = model_two.evaluate(x_test, y_test, verbose=0)
 print(f"\nFinal Test Accuracy: {acc:.4f}")
 
 probability_two  = model_two.predict(x_test)
 prediction_two = np.argmax(probability_two , axis=1)
+#Confusion matrix of the multi-class model
 conf_mat = confusion_matrix(y_test, prediction_two)
 
 ConfusionMatrixDisplay(conf_mat, display_labels=all_birds).plot(
@@ -272,6 +276,7 @@ plt.title('Multiclass Confusion Matrix')
 plt.tight_layout()
 plt.show()
 
+# Precisio, recalll, f1 score per class
 precision, recall, f1, _ = precision_recall_fscore_support(
     y_test,
     prediction_two,
@@ -294,10 +299,10 @@ audios = {
     "test3": "/Users/alekh/Desktop/birds/test3.wav"
 }
 
-
+# loading the waveforms
 def waveforms(path, name):
     audio, sr = librosa.load(path, sr=22050)  
-
+    # making plots of the waveforms
     plt.figure(figsize=(10, 4))
     librosa.display.waveshow(audio, sr=sr)
     plt.title(f"waveform {name}")
@@ -313,6 +318,7 @@ for name, path in audios.items():
     audio, sr = waveforms(path, name)
     audio_list[name] = (audio, sr)
 
+# plotting the spectrograms from the time slices
 def generate_spectrograms(audio, sr, start_sec, end_sec, name):
     start_sample = int(start_sec * sr)
     end_sample = int(end_sec * sr)
@@ -337,7 +343,7 @@ for name, (audio, sr) in audio_list.items():
     start_sec, end_sec = time_windows[name]
     generate_spectrograms(audio, sr, start_sec, end_sec, name)
 
-
+# Storing the spectrograms in HDF5 format
 def spectro_array(audio, sr, start_sec, end_sec, n_mels=256, n_fft=2048, hop_length=512):
     start_sample = int(start_sec * sr)
     end_sample = int(end_sec * sr)
@@ -357,8 +363,7 @@ with h5py.File('/Users/alekh/Desktop/birds/spectrograms.h5', 'w') as hf:
         plt.title(f'Spectrogram of {name}')
         plt.show()
 
-
-
+# Test Data pre-processing
 spectro_path = '/Users/alekh/Desktop/birds/bird_spectrograms.hdf5'
 audios = {
     "test1": "/Users/alekh/Desktop/birds/test1.wav",
@@ -410,6 +415,7 @@ model_three = Sequential([
 model_three.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 model_three.fit(spectrogram_list, labels_onehot, epochs=5, batch_size=32)
 
+#Predicting the unseen clips
 test_data = []
 for name, path in audios.items():
     audio, sr = librosa.load(path, sr=22050)
@@ -430,7 +436,7 @@ test_class = label_encoder.inverse_transform(test_one)
 for i, pred in enumerate(test_class, 1):
     print(f"Test Spectrogram {i} predicted as {pred}")
 
-
+# Predicting the top three classes
 bird_codes = label_encoder.classes_
 bird_names = [names[c] for c in bird_codes]
 
